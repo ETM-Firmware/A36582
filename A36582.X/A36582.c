@@ -6,15 +6,10 @@
 #include <timer.h>
 #include "A36582.h"
 #include "FIRMWARE_VERSION.h"
-#include "ETM_EEPROM.h"
 #include "A36582_SETTINGS.h"
-#include "ETM_SPI.h"
-#include "ETM_RC_FILTER.h"
-#include "P1395_MODULE_CONFIG.h"
-#include "P1395_CAN_SLAVE.h"
+
 
 _FOSC(ECIO & CSW_FSCM_OFF); 
-//_FWDT(WDT_ON & WDTPSA_64 & WDTPSB_8);  // 1 Second watchdog timer 
 _FWDT(WDT_ON & WDTPSA_512 & WDTPSB_8);  // 8 Second watchdog timer 
 _FBORPOR(PWRT_64 & BORV_45 & PBOR_OFF & MCLR_EN);
 _FBS(WR_PROTECT_BOOT_OFF & NO_BOOT_CODE & NO_BOOT_EEPROM & NO_BOOT_RAM);
@@ -138,8 +133,8 @@ void DoA36582(void) {
     PIN_LED_A_RED = !OLL_LED_ON;
   }
   
-  if (_T5IF) {
-    _T5IF = 0;
+  if (_T3IF) {
+    _T3IF = 0;
     // 10ms has passed
     if (global_data_A36582.control_state == STATE_FLASH_LED) {
       global_data_A36582.led_flash_counter++;
@@ -192,11 +187,11 @@ void DoA36582(void) {
   
   /*
   // Reset the pulse latches if they are set and it has been more than 2ms since the last pulse
-  if ((TMR4 > TIMER_4_TIME_2_MILLISECONDS) && (PIN_PULSE_OVER_CURRENT_LATCH_4 == ILL_LATCH_SET)) {
+  if ((TMR2 > TIMER_4_TIME_2_MILLISECONDS) && (PIN_PULSE_OVER_CURRENT_LATCH_4 == ILL_LATCH_SET)) {
 
     ResetPulseLatches();
-    // DPARKER. why doesn't this clear the fault latches before a fault latch check.  You would think that the TMR4 check would prevent this.
-  // Perhaps adding a long delay and then reckecking TMR4 before the ResetPulseLatches would fix the problem?
+    // DPARKER. why doesn't this clear the fault latches before a fault latch check.  You would think that the TMR2 check would prevent this.
+  // Perhaps adding a long delay and then reckecking TMR2 before the ResetPulseLatches would fix the problem?
   }
   */
 }
@@ -272,17 +267,17 @@ void InitializeA36582(void) {
 
 
 
-  // Initialize TMR4
-  TMR4  = 0;
-  _T4IF = 0;
-  T4CON = T4CON_VALUE;
+  // Initialize TMR2
+  TMR2  = 0;
+  _T2IF = 0;
+  T2CON = T2CON_VALUE;
 
   
-  // Initialize TMR5
-  PR5   = PR5_VALUE_10_MILLISECONDS;
-  TMR5  = 0;
-  _T5IF = 0;
-  T5CON = T5CON_VALUE;
+  // Initialize TMR3
+  PR3   = PR3_VALUE_10_MILLISECONDS;
+  TMR3  = 0;
+  _T3IF = 0;
+  T3CON = T3CON_VALUE;
 
 
   
@@ -291,19 +286,42 @@ void InitializeA36582(void) {
 
 
   // Initialize the Can module
-  ETMCanSlaveInitialize();
-
+  ETMCanSlaveInitialize(FCY_CLK, ETM_CAN_ADDR_MAGNETRON_CURRENT_BOARD, _PIN_RG13, 4);
+  ETMCanSlaveLoadConfiguration(36582, 0, FIRMWARE_AGILE_REV, FIRMWARE_BRANCH, FIRMWARE_MINOR_REV);
 
   // Initialize the Analog input data structures
-  // DPARKER set the scale factors
-  ETMAnalogInitializeInput(&global_data_A36582.imag_internal_adc, MACRO_DEC_TO_SCALE_FACTOR_16(.25075), OFFSET_ZERO, ANALOG_INPUT_NO_CALIBRATION,
-			   NO_OVER_TRIP, NO_UNDER_TRIP, NO_TRIP_SCALE, NO_FLOOR, NO_COUNTER);
+   ETMAnalogInitializeInput(&global_data_A36582.imag_internal_adc,
+			    MACRO_DEC_TO_SCALE_FACTOR_16(.25075),
+			    OFFSET_ZERO,
+			    ANALOG_INPUT_0,
+			    NO_OVER_TRIP,
+			    NO_UNDER_TRIP,
+			    NO_TRIP_SCALE,
+			    NO_FLOOR,
+			    NO_COUNTER,
+			    NO_COUNTER);
   
-  ETMAnalogInitializeInput(&global_data_A36582.imag_external_adc, MACRO_DEC_TO_SCALE_FACTOR_16(.25075), OFFSET_ZERO, ANALOG_INPUT_NO_CALIBRATION, 
-			   NO_OVER_TRIP, NO_UNDER_TRIP, NO_TRIP_SCALE, NO_FLOOR, NO_COUNTER);
+  ETMAnalogInitializeInput(&global_data_A36582.imag_external_adc,
+			   MACRO_DEC_TO_SCALE_FACTOR_16(.25075),
+			   OFFSET_ZERO,
+			   ANALOG_INPUT_1, 
+			   NO_OVER_TRIP,
+			   NO_UNDER_TRIP,
+			   NO_TRIP_SCALE,
+			   NO_FLOOR,
+			   NO_COUNTER,
+			   NO_COUNTER);
 
-  ETMAnalogInitializeInput(&global_data_A36582.analog_input_5v_mon, MACRO_DEC_TO_SCALE_FACTOR_16(.12500), OFFSET_ZERO, ANALOG_INPUT_NO_CALIBRATION,
-			   PWR_5V_OVER_FLT, PWR_5V_UNDER_FLT, NO_TRIP_SCALE, NO_FLOOR, NO_COUNTER);
+  ETMAnalogInitializeInput(&global_data_A36582.analog_input_5v_mon,
+			   MACRO_DEC_TO_SCALE_FACTOR_16(.12500),
+			   OFFSET_ZERO,
+			   ANALOG_INPUT_NO_CALIBRATION,
+			   PWR_5V_OVER_FLT,
+			   PWR_5V_UNDER_FLT,
+			   NO_TRIP_SCALE,
+			   NO_FLOOR,
+			   NO_COUNTER,
+			   NO_COUNTER);
 
 
   // Configure SPI port, used by External ADC
@@ -590,11 +608,11 @@ void __attribute__((interrupt, shadow, no_auto_psv)) _INT1Interrupt(void) {
 
   // Check that there was enough time between pulses
   //
-  if ((TMR4 <= MINIMUM_PULSE_PERIOD_T4) && (_T4IF == 0)) {
+  if ((TMR2 <= MINIMUM_PULSE_PERIOD_T2) && (_T2IF == 0)) {
     global_data_A36582.minimum_pulse_period_fault_count++;
   }
-  _T4IF = 0;
-  TMR4 = 0;
+  _T2IF = 0;
+  TMR2 = 0;
   
 
   // Wait for the pulse energy to dissipate

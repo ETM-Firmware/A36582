@@ -1,19 +1,24 @@
 #ifndef __A36582_H
 #define __A36582_H
 
-#include "ETM_ANALOG.h"
+#include "ETM.h"
+#include "P1395_CAN_SLAVE.h"
+
+
+#define FCY_CLK     10000000
+
 
 /*
   Hardware Module Resource Usage
 
   CAN1   - Used/Configured by ETM CAN 
-  Timer2 - Used/Configured by ETM CAN - Used to Time sending of messages (status update / logging data and such) 
-  Timer3 - Used/Configured by ETM CAN - Used for detecting error on can bus
+  Timer2(4) - Used/Configured by ETM CAN - Used to Time sending of messages (status update / logging data and such) 
+  Timer3(5) - Used/Configured by ETM CAN - Used for detecting error on can bus
 
   I2C    - Used/Configured by EEPROM Module
 
-  Timer4 - Used for looking at time between pulses
-  Timer5 - Used for 10msTicToc
+  Timer4(2) - Used for looking at time between pulses
+  Timer5(3) - Used for 10msTicToc
 
   ADC Module - See Below For Specifics
 
@@ -161,27 +166,27 @@
 
 
 /* 
-   TMR4 Configuration
-   Timer4 is used to see if the time between triggers is too short
+   TMR2 Configuration
+   Timer2 is used to see if the time between triggers is too short
    With 10Mhz Clock, x8 multiplier will yield max period of 52.4mS, 800nS per tick
 */
 
 #define MINIMUM_PULSE_PERIOD_US   2200
 
-#define T4CON_VALUE                    (T4_ON & T4_IDLE_CON & T4_GATE_OFF & T4_PS_1_8 & T4_SOURCE_INT & T4_32BIT_MODE_OFF)
-#define MINIMUM_PULSE_PERIOD_T4        2750 //(FCY_CLK_MHZ*MINIMUM_PULSE_PERIOD_US/8)
+#define T2CON_VALUE                    (T2_ON & T2_IDLE_CON & T2_GATE_OFF & T2_PS_1_8 & T2_SOURCE_INT & T2_32BIT_MODE_OFF)
+#define MINIMUM_PULSE_PERIOD_T2        2750 //(FCY_CLK_MHZ*MINIMUM_PULSE_PERIOD_US/8)
 
 #define TIMER_4_TIME_2_MILLISECONDS    2500
 
 /* 
-   TMR5 Configuration
-   Timer5 - Used for 10msTicToc
+   TMR3 Configuration
+   Timer3 - Used for 10msTicToc
    Period should be set to 10mS
 */
 
-#define T5CON_VALUE                    (T5_ON & T5_IDLE_CON & T5_GATE_OFF & T5_PS_1_8 & T5_SOURCE_INT)
-#define PR5_PERIOD_US                  10000   // 10mS
-#define PR5_VALUE_10_MILLISECONDS      (FCY_CLK_MHZ*PR5_PERIOD_US/8)
+#define T3CON_VALUE                    (T3_ON & T3_IDLE_CON & T3_GATE_OFF & T3_PS_1_8 & T3_SOURCE_INT)
+#define PR3_PERIOD_US                  10000   // 10mS
+#define PR3_VALUE_10_MILLISECONDS      12500   //(FCY_CLK_MHZ*PR5_PERIOD_US/8)
 
 
 
