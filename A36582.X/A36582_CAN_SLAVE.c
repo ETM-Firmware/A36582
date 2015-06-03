@@ -23,6 +23,14 @@ void ETMCanSlaveLogCustomPacketC(void) {
      Use this to log Board specific data packet
      This will get executed once per update cycle (1.6 seconds) and will be spaced out in time from the other log data
   */
+  if (global_data_A36582.imag_internal_adc.reading_scaled_and_calibrated < 10) {
+    global_data_A36582.imag_internal_adc.reading_scaled_and_calibrated = 10;
+  }
+  
+  if (global_data_A36582.imag_external_adc.reading_scaled_and_calibrated < 10) {
+    global_data_A36582.imag_external_adc.reading_scaled_and_calibrated = 10;
+  }
+  
   ETMCanSlaveLogData(
 		     ETM_CAN_DATA_LOG_REGISTER_MAGNETRON_MON_FAST_PREVIOUS_PULSE,
 		     global_data_A36582.sample_index,
@@ -30,6 +38,8 @@ void ETMCanSlaveLogCustomPacketC(void) {
 		     global_data_A36582.imag_external_adc.reading_scaled_and_calibrated,
 		     _STATUS_ARC_DETECTED
 		     );
+  global_data_A36582.imag_internal_adc.reading_scaled_and_calibrated = 0xFFFF;
+  global_data_A36582.imag_external_adc.reading_scaled_and_calibrated = 0xFFFF;
 }
 
 
