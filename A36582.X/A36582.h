@@ -253,6 +253,10 @@ typedef struct {
   unsigned int over_current_arc_count;
   unsigned int under_current_arc_count;
 
+
+  unsigned int internal_send_back;
+  unsigned int external_send_back;
+
 } MagnetronCurrentMonitorGlobalData;
 
 extern MagnetronCurrentMonitorGlobalData global_data_A36582;
