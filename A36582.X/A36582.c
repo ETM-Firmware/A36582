@@ -18,9 +18,6 @@ _FGS(CODE_PROT_OFF);
 _FICD(PGD);
 
 
-unsigned int dan_test_int;
-unsigned int dan_test_ext;
-unsigned int dan_test_spc;
 
 void InitializeA36582(void);
 void DoStateMachine(void);
@@ -73,8 +70,8 @@ void DoStateMachine(void) {
     global_data_A36582.pulse_counter_fast = 0;
     global_data_A36582.pulse_counter_slow = 0;
     global_data_A36582.false_trigger_counter = 0;
-    global_data_A36582.under_current_arc_count = 0;
-    global_data_A36582.over_current_arc_count = 0;
+    under_current_arc_count = 0;
+    over_current_arc_count = 0;
     _FAULT_REGISTER = 0;
     _CONTROL_NOT_READY = 0;
     while (global_data_A36582.control_state == STATE_OPERATE) {
@@ -99,8 +96,8 @@ void DoStateMachine(void) {
 	global_data_A36582.sample_complete = 0;
 	DoPostPulseProcess();
       }
-
-      if (_SYNC_CONTROL_RESET_ENABLE) {
+      
+      if (ETMCanSlaveGetSyncMsgResetEnable()) {
 	global_data_A36582.control_state = STATE_OPERATE;
       }
     }
@@ -116,16 +113,16 @@ void DoStateMachine(void) {
 
 void DoA36582(void) {
   ETMCanSlaveDoCan();
-  
-  if (_SYNC_CONTROL_CLEAR_DEBUG_DATA) {
-    global_data_A36582.arc_this_hv_on = 0;
+
+  if (ETMCanSlaveGetSyncMsgClearDebug()) {
+    arc_this_hv_on = 0;
     global_data_A36582.pulse_this_hv_on = 0;
   }
 
-  if (_CONTROL_CAN_COM_LOSS) {
+  if (ETMCanSlaveGetComFaultStatus()) {
     _FAULT_CAN_COMMUNICATION_LATCHED = 1;
   }
-
+  
   // If the system is faulted or inhibited set the red LED
   if (_CONTROL_NOT_READY) {
     PIN_LED_A_RED = OLL_LED_ON;
@@ -135,6 +132,7 @@ void DoA36582(void) {
   
   if (_T3IF) {
     _T3IF = 0;
+    global_data_A36582.sample_complete = 1;  // DPARKER Added for testing 
     // 10ms has passed
     if (global_data_A36582.control_state == STATE_FLASH_LED) {
       global_data_A36582.led_flash_counter++;
@@ -146,24 +144,27 @@ void DoA36582(void) {
       global_data_A36582.millisecond_counter = 0;
       SavePulseCountersToEEProm();
     }
-    
-    
-    local_debug_data.debug_0 = global_data_A36582.fast_arc_counter;
-    local_debug_data.debug_1 = global_data_A36582.slow_arc_counter;
-    local_debug_data.debug_2 = global_data_A36582.consecutive_arc_counter;
-    local_debug_data.debug_4 = global_data_A36582.filt_int_adc_low;
-    local_debug_data.debug_5 = global_data_A36582.filt_ext_adc_low;
-    local_debug_data.debug_6 = global_data_A36582.filt_int_adc_high;
-    local_debug_data.debug_7 = global_data_A36582.filt_ext_adc_high;
-    local_debug_data.debug_8 = global_data_A36582.imag_external_adc.reading_scaled_and_calibrated;
-    local_debug_data.debug_9 = global_data_A36582.imag_internal_adc.reading_scaled_and_calibrated;
-    local_debug_data.debug_A = global_data_A36582.pulse_with_no_trigger_counter;
-    local_debug_data.debug_B = global_data_A36582.minimum_pulse_period_fault_count;
-    local_debug_data.debug_C = global_data_A36582.false_trigger_counter;
-    local_debug_data.debug_D = global_data_A36582.over_current_arc_count;
-    local_debug_data.debug_E = global_data_A36582.under_current_arc_count;
-    
 
+    // ----------------- UPDATE LOGGING DATA ------------------------ //
+    ETMCanSlaveSetDebugRegister(0, global_data_A36582.fast_arc_counter);
+    ETMCanSlaveSetDebugRegister(1, global_data_A36582.slow_arc_counter);
+    ETMCanSlaveSetDebugRegister(2, global_data_A36582.consecutive_arc_counter);
+    //ETMCanSlaveSetDebugRegister(4, global_data_A36582.filt_int_adc_low);
+    //ETMCanSlaveSetDebugRegister(5, global_data_A36582.filt_ext_adc_low);
+    //ETMCanSlaveSetDebugRegister(6, global_data_A36582.filt_int_adc_high);
+    //ETMCanSlaveSetDebugRegister(7, global_data_A36582.filt_ext_adc_high);
+    ETMCanSlaveSetDebugRegister(8, global_data_A36582.imag_external_adc.reading_scaled_and_calibrated);
+    ETMCanSlaveSetDebugRegister(9, global_data_A36582.imag_internal_adc.reading_scaled_and_calibrated);
+    ETMCanSlaveSetDebugRegister(10, global_data_A36582.pulse_with_no_trigger_counter);
+    ETMCanSlaveSetDebugRegister(11, global_data_A36582.minimum_pulse_period_fault_count);
+    ETMCanSlaveSetDebugRegister(12, global_data_A36582.false_trigger_counter);
+    //ETMCanSlaveSetDebugRegister(13, over_current_arc_count);
+    //ETMCanSlaveSetDebugRegister(14, under_current_arc_count);
+
+    *(unsigned long long*)&slave_board_data.log_data[8] = global_data_A36582.pulse_total;
+    *(unsigned long*)&slave_board_data.log_data[4] = global_data_A36582.pulse_this_hv_on;
+    *(unsigned long*)&slave_board_data.log_data[6] = global_data_A36582.arc_total;
+    
     // Update tthe false trigger counter
     global_data_A36582.false_trigger_decrement_counter++;
     if (global_data_A36582.false_trigger_decrement_counter >= FALSE_TRIGGER_DECREMENT_10_MS_UNITS) {
@@ -233,19 +234,13 @@ void InitializeA36582(void) {
   unsigned int pulse_data[7];
 
   // Initialize the status register and load the inhibit and fault masks
-  _FAULT_REGISTER = 0;
   _CONTROL_REGISTER = 0;
-  etm_can_status_register.data_word_A = 0x0000;
-  etm_can_status_register.data_word_B = 0x0000;
+  _FAULT_REGISTER = 0;
+  _WARNING_REGISTER = 0;
+  _NOT_LOGGED_REGISTER = 0;
   
-  etm_can_my_configuration.firmware_major_rev = FIRMWARE_AGILE_REV;
-  etm_can_my_configuration.firmware_branch = FIRMWARE_BRANCH;
-  etm_can_my_configuration.firmware_minor_rev = FIRMWARE_MINOR_REV;
-
-
   // Configure Trigger Interrupt
   _INT1IP = 7; // This must be the highest priority interrupt
-  //_INT1EP = 1; // Negative Transition
   _INT1IE = 1;
   
   // Configure the "False Trigger" Interrupt
@@ -255,7 +250,6 @@ void InitializeA36582(void) {
 
   // By Default, the can module will set it's interrupt Priority to 4
   
-  
   // Initialize all I/O Registers
   TRISA = A36582_TRISA_VALUE;
   TRISB = A36582_TRISB_VALUE;
@@ -263,8 +257,6 @@ void InitializeA36582(void) {
   TRISD = A36582_TRISD_VALUE;
   TRISF = A36582_TRISF_VALUE;
   TRISG = A36582_TRISG_VALUE;
-
-
 
 
   // Initialize TMR2
@@ -283,23 +275,25 @@ void InitializeA36582(void) {
   
   // Initialize the External EEprom
   ETMEEPromConfigureExternalDevice(EEPROM_SIZE_8K_BYTES, FCY_CLK, 400000, EEPROM_I2C_ADDRESS_0, 1);
-
-
+  
+#define AGILE_REV 77
+#define SERIAL_NUMBER 100
+  
   // Initialize the Can module
-  ETMCanSlaveInitialize(FCY_CLK, ETM_CAN_ADDR_MAGNETRON_CURRENT_BOARD, _PIN_RG13, 4);
-  ETMCanSlaveLoadConfiguration(36582, 0, FIRMWARE_AGILE_REV, FIRMWARE_BRANCH, FIRMWARE_MINOR_REV);
-
+  ETMCanSlaveInitialize(CAN_PORT_1, FCY_CLK, ETM_CAN_ADDR_MAGNETRON_CURRENT_BOARD, _PIN_RG13, 4);
+  ETMCanSlaveLoadConfiguration(36582, 0, AGILE_REV, FIRMWARE_AGILE_REV, FIRMWARE_BRANCH, FIRMWARE_BRANCH_REV, SERIAL_NUMBER);
+  
   // Initialize the Analog input data structures
-   ETMAnalogInitializeInput(&global_data_A36582.imag_internal_adc,
-			    MACRO_DEC_TO_SCALE_FACTOR_16(.25075),
-			    OFFSET_ZERO,
-			    ANALOG_INPUT_0,
-			    NO_OVER_TRIP,
-			    NO_UNDER_TRIP,
-			    NO_TRIP_SCALE,
-			    NO_FLOOR,
-			    NO_COUNTER,
-			    NO_COUNTER);
+  ETMAnalogInitializeInput(&global_data_A36582.imag_internal_adc,
+			   MACRO_DEC_TO_SCALE_FACTOR_16(.25075),
+			   OFFSET_ZERO,
+			   ANALOG_INPUT_0,
+			   NO_OVER_TRIP,
+			   NO_UNDER_TRIP,
+			   NO_TRIP_SCALE,
+			   NO_FLOOR,
+			   NO_COUNTER,
+			   NO_COUNTER);
   
   ETMAnalogInitializeInput(&global_data_A36582.imag_external_adc,
 			   MACRO_DEC_TO_SCALE_FACTOR_16(.25075),
@@ -443,9 +437,6 @@ void SavePulseCountersToEEProm(void) {
     
   }
     
-  
-
-
 }
 
 
@@ -459,53 +450,59 @@ void DoPostPulseProcess(void) {
   // Read the analog current level from internal ADC
   // DPARKRER this should be ~zero with the new timing strategy
   global_data_A36582.imag_internal_adc.filtered_adc_reading = (ADCBUF0 << 4);
-  dan_test_int = global_data_A36582.imag_internal_adc.filtered_adc_reading;
   //_LATF6 = 0;
 
   // Scale the readings
   ETMAnalogScaleCalibrateADCReading(&global_data_A36582.imag_internal_adc);
   ETMAnalogScaleCalibrateADCReading(&global_data_A36582.imag_external_adc);
   
-
-  // Look for an arc
-  _STATUS_ARC_DETECTED = 0;
-
-  if ((PIN_PULSE_OVER_CURRENT_LATCH_1 == ILL_LATCH_SET) || (PIN_PULSE_OVER_CURRENT_LATCH_4 != ILL_LATCH_SET)) {
-    // The current after the trigger was too high or too low
-    PIN_OUT_TP_C = 1;
-    _STATUS_ARC_DETECTED = 1;
-   
-    if (PIN_PULSE_OVER_CURRENT_LATCH_1 == ILL_LATCH_SET) {
-      global_data_A36582.over_current_arc_count++;
-    }
-    if (PIN_PULSE_OVER_CURRENT_LATCH_4 != ILL_LATCH_SET) {
-      global_data_A36582.under_current_arc_count++;
-    }
-
-    __delay32(500);  // 50us Trigger pulse that we had an arc
-    PIN_OUT_TP_C = 0;
-    
-  }
+  global_data_A36582.arc_this_pulse = 0;
 
   // DPARKER Consider checking the analog current reading to also look for arc
-
-  if (_STATUS_ARC_DETECTED) {
-    // Trigger Test Point E for 2uS after an arc is detected
-    PIN_OUT_TP_E = 1;
-    __delay32(20);
-    PIN_OUT_TP_E = 0;
+  if ((PIN_PULSE_OVER_CURRENT_LATCH_1 == ILL_LATCH_SET) || (PIN_PULSE_OVER_CURRENT_LATCH_4 != ILL_LATCH_SET)) {
+    // The current after the trigger was too high or too low
+    _NOTICE_ARC_DETECTED = 1;
+    global_data_A36582.arc_this_pulse = 1;
     
+    if (PIN_PULSE_OVER_CURRENT_LATCH_1 == ILL_LATCH_SET) {
+      over_current_arc_count++;
+    }
+    if (PIN_PULSE_OVER_CURRENT_LATCH_4 != ILL_LATCH_SET) {
+      under_current_arc_count++;
+    }
+
     global_data_A36582.arc_total++;
-    global_data_A36582.arc_this_hv_on++;
+    arc_this_hv_on++;
     global_data_A36582.fast_arc_counter++;
     global_data_A36582.slow_arc_counter++;
     global_data_A36582.consecutive_arc_counter++;
+    
   } else {
     if (global_data_A36582.consecutive_arc_counter) { 
       global_data_A36582.consecutive_arc_counter--;
     }
+    
+    // Filter the ADC current readings
+    _NOT_LOGGED_HIGH_ENERGY = global_data_A36582.sample_energy_mode;
+    if (global_data_A36582.sample_energy_mode) {
+      filt_int_adc_high = RCFilterNTau(filt_int_adc_high,
+				       global_data_A36582.imag_internal_adc.reading_scaled_and_calibrated,
+				       RC_FILTER_64_TAU);
+      
+      filt_ext_adc_high = RCFilterNTau(filt_ext_adc_high,
+				       global_data_A36582.imag_external_adc.reading_scaled_and_calibrated,
+				       RC_FILTER_64_TAU);
+    } else {
+      filt_int_adc_low = RCFilterNTau(filt_int_adc_low,
+				      global_data_A36582.imag_internal_adc.reading_scaled_and_calibrated,
+				      RC_FILTER_64_TAU);
+      
+      filt_ext_adc_low = RCFilterNTau(filt_ext_adc_low,
+				      global_data_A36582.imag_external_adc.reading_scaled_and_calibrated,
+				      RC_FILTER_64_TAU);
+    }
   }
-
+  
   global_data_A36582.pulse_total++;
   global_data_A36582.pulse_this_hv_on++;
 	
@@ -540,33 +537,15 @@ void DoPostPulseProcess(void) {
     _FAULT_ARC_CONTINUOUS = 1;
   }
 	
-  // Filter the ADC current readings
-  _STATUS_HIGH_ENERGY = global_data_A36582.sample_energy_mode;
-  if (!_STATUS_ARC_DETECTED) { 
-    if (global_data_A36582.sample_energy_mode) {
-      global_data_A36582.filt_int_adc_high = RCFilterNTau(global_data_A36582.filt_int_adc_high,
-							  global_data_A36582.imag_internal_adc.reading_scaled_and_calibrated,
-							  RC_FILTER_64_TAU);
-      
-      global_data_A36582.filt_ext_adc_high = RCFilterNTau(global_data_A36582.filt_ext_adc_high,
-							  global_data_A36582.imag_external_adc.reading_scaled_and_calibrated,
-							  RC_FILTER_64_TAU);
-    } else {
-      global_data_A36582.filt_int_adc_low = RCFilterNTau(global_data_A36582.filt_int_adc_low,
-							 global_data_A36582.imag_internal_adc.reading_scaled_and_calibrated,
-							 RC_FILTER_64_TAU);
-      
-      global_data_A36582.filt_ext_adc_low = RCFilterNTau(global_data_A36582.filt_ext_adc_low,
-							 global_data_A36582.imag_external_adc.reading_scaled_and_calibrated,
-							 RC_FILTER_64_TAU);
-    }
-  }
-
   // Reset the Latches
   ResetPulseLatches();
-  
-  if (_SYNC_CONTROL_HIGH_SPEED_LOGGING) {
-    ETMCanSlaveLogCustomPacketC();  // This is the data log packet that contains the data for the previous pulse
+  if (ETMCanSlaveGetSyncMsgHighSpeedLogging()) {
+    ETMCanSlaveLogPulseData(ETM_CAN_DATA_LOG_REGISTER_MAGNETRON_MON_FAST_LOG_0,
+			    global_data_A36582.sample_index,
+			    global_data_A36582.imag_external_adc.reading_scaled_and_calibrated,
+			    global_data_A36582.imag_internal_adc.reading_scaled_and_calibrated,
+			    global_data_A36582.arc_this_pulse
+			    );
   }
 }
 
@@ -602,8 +581,9 @@ void __attribute__((interrupt, shadow, no_auto_psv)) _INT1Interrupt(void) {
   //_LATF6 = 1;
   // DPARKER delay until we are in the middle of the current pulse to sample
 
-  global_data_A36582.sample_energy_mode = etm_can_next_pulse_level;
-  global_data_A36582.sample_index = etm_can_next_pulse_count;
+  // DPARKER these functions may mess with the timing
+  global_data_A36582.sample_energy_mode = ETMCanSlaveGetPulseLevel();
+  global_data_A36582.sample_index = ETMCanSlaveGetPulseCount();
   global_data_A36582.sample_complete = 1;
 
   // Check that there was enough time between pulses
@@ -622,7 +602,6 @@ void __attribute__((interrupt, shadow, no_auto_psv)) _INT1Interrupt(void) {
   PIN_OUT_TP_F = 1;
   PIN_ADC_CHIP_SELECT = OLL_ADC_SELECT_CHIP;
   global_data_A36582.imag_external_adc.filtered_adc_reading = SendAndReceiveSPI(0, ETM_SPI_PORT_2);
-  dan_test_ext = global_data_A36582.imag_external_adc.filtered_adc_reading;
   PIN_ADC_CHIP_SELECT = !OLL_ADC_SELECT_CHIP;
   PIN_OUT_TP_F = 0;
 
@@ -659,3 +638,18 @@ void __attribute__((interrupt, no_auto_psv)) _DefaultInterrupt(void) {
 }
 
 
+void ETMCanSlaveExecuteCMDBoardSpecific(ETMCanMessage* message_ptr) {
+  unsigned int index_word;
+
+  index_word = message_ptr->word3;
+  switch (index_word) 
+    {
+      /*
+	Place all board specific commands here
+      */
+      
+    default:
+      //local_can_errors.invalid_index++;
+      break;
+    }
+}

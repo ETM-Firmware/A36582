@@ -16,7 +16,6 @@
                    displayName="Source Files"
                    projectFiles="true">
       <itemPath>A36582.c</itemPath>
-      <itemPath>A36582_CAN_SLAVE.c</itemPath>
     </logicalFolder>
     <logicalFolder name="ExternalFiles"
                    displayName="Important Files"
@@ -24,6 +23,9 @@
       <itemPath>Makefile</itemPath>
     </logicalFolder>
   </logicalFolder>
+  <sourceRootList>
+    <Elem>../../ETM_LIBRARY/Source/ETM_LINAC_CAN.X</Elem>
+  </sourceRootList>
   <projectmakefile>Makefile</projectmakefile>
   <confs>
     <conf name="default" type="2">
@@ -40,9 +42,9 @@
       <compileType>
         <linkerTool>
           <linkerLibItems>
-            <linkerLibFileItem>../../ETM_LIBRARY/lib/ETM_LINAC_CAN_0x0010.a</linkerLibFileItem>
-            <linkerLibFileItem>../../ETM_LIBRARY/lib/ETM_EEPROM_EXTERNAL_0x0010.a</linkerLibFileItem>
-            <linkerLibFileItem>../../ETM_LIBRARY/lib/ETM_LIBRARY_0x0010.a</linkerLibFileItem>
+            <linkerLibFileItem>../../ETM_LIBRARY/Version_01/lib/ETM_EEPROM_EXTERNAL.a</linkerLibFileItem>
+            <linkerLibFileItem>../../ETM_LIBRARY/Version_01/lib/ETM_LINAC_CAN.a</linkerLibFileItem>
+            <linkerLibFileItem>../../ETM_LIBRARY/Version_01/lib/ETM_CORE.a</linkerLibFileItem>
           </linkerLibItems>
         </linkerTool>
         <archiverTool>
@@ -105,6 +107,23 @@
         <property key="additional-options-chop-files" value="false"/>
       </C30-AR>
       <C30-AS>
+        <property key="assembler-symbols" value=""/>
+        <property key="expand-macros" value="false"/>
+        <property key="extra-include-directories-for-assembler" value=""/>
+        <property key="extra-include-directories-for-preprocessor" value=""/>
+        <property key="false-conditionals" value="false"/>
+        <property key="keep-locals" value="false"/>
+        <property key="list-assembly" value="false"/>
+        <property key="list-section-info" value="false"/>
+        <property key="list-source" value="false"/>
+        <property key="list-symbols" value="false"/>
+        <property key="oXC16asm-extra-opts" value=""/>
+        <property key="oXC16asm-list-to-file" value="false"/>
+        <property key="omit-debug-dirs" value="false"/>
+        <property key="omit-forms" value="false"/>
+        <property key="preprocessor-macros" value=""/>
+        <property key="relax" value="false"/>
+        <property key="warning-level" value="emit-warnings"/>
       </C30-AS>
       <C30-LD>
         <property key="additional-options-use-response-files" value="false"/>
@@ -152,7 +171,8 @@
         <property key="warn-section-align" value="false"/>
       </C30-LD>
       <C30Global>
-        <property key="common-include-directories" value="..\..\ETM_LIBRARY\inc"/>
+        <property key="common-include-directories"
+                  value="..\..\ETM_LIBRARY\Version_01\inc"/>
         <property key="dual-boot-partition" value="0"/>
         <property key="fast-math" value="false"/>
         <property key="generic-16-bit" value="false"/>

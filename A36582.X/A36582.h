@@ -197,13 +197,13 @@
 #define STATE_FAULT                  60
 
 
-#define _STATUS_HIGH_ENERGY                             _STATUS_0
-#define _STATUS_ARC_DETECTED                            _STATUS_1
+#define _NOT_LOGGED_HIGH_ENERGY                         _NOT_LOGGED_0
+#define _NOTICE_ARC_DETECTED                            _NOTICE_0
 
-#define _FAULT_ARC_SLOW                                 _FAULT_0
-#define _FAULT_ARC_FAST                                 _FAULT_1
-#define _FAULT_ARC_CONTINUOUS                           _FAULT_2
-#define _FAULT_CAN_COMMUNICATION_LATCHED                _FAULT_3
+#define _FAULT_CAN_COMMUNICATION_LATCHED                _FAULT_0
+#define _FAULT_ARC_SLOW                                 _FAULT_1
+#define _FAULT_ARC_FAST                                 _FAULT_2
+#define _FAULT_ARC_CONTINUOUS                           _FAULT_3
 #define _FAULT_FALSE_TRIGGER                            _FAULT_4
 
 typedef struct {
@@ -211,17 +211,10 @@ typedef struct {
   AnalogInput imag_external_adc;               // 10mA per LSB
   AnalogInput analog_input_5v_mon;             // 1mV per LSB
 
-  unsigned int filt_int_adc_high;
-  unsigned int filt_int_adc_low;
-
-  unsigned int filt_ext_adc_high;
-  unsigned int filt_ext_adc_low;
-
   unsigned int control_state;
 
-  //unsigned int led_divider;
   
-  unsigned int arc_this_hv_on;
+//unsigned int arc_this_hv_on;
   unsigned long pulse_this_hv_on;
 
   unsigned long      arc_total;     // When pulsing these need to get written to EEPROM periodically 
@@ -233,8 +226,8 @@ typedef struct {
   unsigned int slow_arc_counter;
   unsigned int consecutive_arc_counter;
 
-  unsigned int pulse_counter_fast;
-  unsigned int pulse_counter_slow;
+  unsigned int pulse_counter_fast;  // This counts the number of pulses to decrease the fast arc counter by 1
+  unsigned int pulse_counter_slow;  // this counts the number of pulses to dectease the slow arc counter by 1
 
   unsigned int sample_index;
   unsigned int sample_energy_mode;
@@ -250,14 +243,22 @@ typedef struct {
   unsigned int false_trigger_decrement_counter;
   unsigned int false_trigger_counter;
 
-  unsigned int over_current_arc_count;
-  unsigned int under_current_arc_count;
-
-
-  unsigned int internal_send_back;
-  unsigned int external_send_back;
+  unsigned int arc_this_pulse;
 
 } MagnetronCurrentMonitorGlobalData;
+
+// These Variables are mapped directly to registers that get logged
+
+#define filt_ext_adc_high                slave_board_data.log_data[0]
+#define filt_int_adc_high                slave_board_data.log_data[1]
+#define filt_ext_adc_low                 slave_board_data.log_data[2]
+#define filt_int_adc_low                 slave_board_data.log_data[3]
+#define arc_this_hv_on                   slave_board_data.log_data[12]
+#define over_current_arc_count           slave_board_data.log_data[14]
+#define under_current_arc_count          slave_board_data.log_data[15]
+
+
+
 
 extern MagnetronCurrentMonitorGlobalData global_data_A36582;
 
