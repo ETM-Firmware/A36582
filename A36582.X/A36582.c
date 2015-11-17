@@ -123,16 +123,9 @@ void DoA36582(void) {
     _FAULT_CAN_COMMUNICATION_LATCHED = 1;
   }
   
-  // If the system is faulted or inhibited set the red LED
-  if (_CONTROL_NOT_READY) {
-    PIN_LED_A_RED = OLL_LED_ON;
-  } else {
-    PIN_LED_A_RED = !OLL_LED_ON;
-  }
-  
   if (_T3IF) {
     _T3IF = 0;
-    global_data_A36582.sample_complete = 1;  // DPARKER Added for testing 
+    
     // 10ms has passed
     if (global_data_A36582.control_state == STATE_FLASH_LED) {
       global_data_A36582.led_flash_counter++;
@@ -203,27 +196,27 @@ void DoStartupLEDs(void) {
     {
       
     case 0:
-      PIN_LED_OPERATIONAL_GREEN = !OLL_LED_ON;
-      PIN_LED_A_RED = !OLL_LED_ON;
-      PIN_LED_B_GREEN = !OLL_LED_ON;
+      _LATA7 = !OLL_LED_ON;
+      _LATG12 = !OLL_LED_ON;
+      _LATG13 = !OLL_LED_ON;
       break;
       
     case 1:
-      PIN_LED_OPERATIONAL_GREEN = OLL_LED_ON;
-      PIN_LED_A_RED = !OLL_LED_ON;
-      PIN_LED_B_GREEN = !OLL_LED_ON;
+      _LATA7 = OLL_LED_ON;
+      _LATG12 = !OLL_LED_ON;
+      _LATG13 = !OLL_LED_ON;
       break;
       
     case 2:
-      PIN_LED_OPERATIONAL_GREEN = OLL_LED_ON;
-      PIN_LED_A_RED = OLL_LED_ON;
-      PIN_LED_B_GREEN = !OLL_LED_ON;
+      _LATA7 = OLL_LED_ON;
+      _LATG12 = OLL_LED_ON;
+      _LATG13 = !OLL_LED_ON;
       break;
       
     case 3:
-      PIN_LED_OPERATIONAL_GREEN = OLL_LED_ON;
-      PIN_LED_A_RED = OLL_LED_ON;
-      PIN_LED_B_GREEN = OLL_LED_ON;
+      _LATA7 = OLL_LED_ON;
+      _LATG12 = OLL_LED_ON;
+      _LATG13 = OLL_LED_ON;
       break;
       
     }
@@ -280,7 +273,7 @@ void InitializeA36582(void) {
 #define SERIAL_NUMBER 100
   
   // Initialize the Can module
-  ETMCanSlaveInitialize(CAN_PORT_1, FCY_CLK, ETM_CAN_ADDR_MAGNETRON_CURRENT_BOARD, _PIN_RG13, 4);
+  ETMCanSlaveInitialize(CAN_PORT_1, FCY_CLK, ETM_CAN_ADDR_MAGNETRON_CURRENT_BOARD, _PIN_RG13, 4, _PIN_RA7, _PIN_RG12);
   ETMCanSlaveLoadConfiguration(36582, 0, AGILE_REV, FIRMWARE_AGILE_REV, FIRMWARE_BRANCH, FIRMWARE_BRANCH_REV, SERIAL_NUMBER);
   
   // Initialize the Analog input data structures
@@ -344,13 +337,11 @@ void InitializeA36582(void) {
 
   if (ETMAnalogCheckOverAbsolute(&global_data_A36582.analog_input_5v_mon)) {
     _CONTROL_SELF_CHECK_ERROR = 1;
-    //ETMCanSlaveSetBit(&local_debug_data.self_test_result_register, SELF_TEST_5V_OV);
     // DPARKER use the self test bits
   }
   
   if (ETMAnalogCheckUnderAbsolute(&global_data_A36582.analog_input_5v_mon)) {
     _CONTROL_SELF_CHECK_ERROR = 1;
-    //ETMCanSlaveSetBit(&local_debug_data.self_test_result_register, SELF_TEST_5V_UV);
     // DPARKER use the self test bits
   }
   
@@ -448,7 +439,7 @@ void DoPostPulseProcess(void) {
   
   
   // Read the analog current level from internal ADC
-  // DPARKRER this should be ~zero with the new timing strategy
+  // DPARKER this should be ~zero with the new timing strategy
   global_data_A36582.imag_internal_adc.filtered_adc_reading = (ADCBUF0 << 4);
   //_LATF6 = 0;
 

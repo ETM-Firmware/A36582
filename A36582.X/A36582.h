@@ -12,13 +12,13 @@
   Hardware Module Resource Usage
 
   CAN1   - Used/Configured by ETM CAN 
-  Timer2(4) - Used/Configured by ETM CAN - Used to Time sending of messages (status update / logging data and such) 
-  Timer3(5) - Used/Configured by ETM CAN - Used for detecting error on can bus
+  Timer4 - Used/Configured by ETM CAN - Used to Time sending of messages (status update / logging data and such) 
+  Timer5 - Used/Configured by ETM CAN - Used for detecting error on can bus
 
   I2C    - Used/Configured by EEPROM Module
 
-  Timer4(2) - Used for looking at time between pulses
-  Timer5(3) - Used for 10msTicToc
+  Timer2 - Used for looking at time between pulses
+  Timer3 - Used for 10msTicToc
 
   ADC Module - See Below For Specifics
 
@@ -124,9 +124,9 @@
 #define PIN_PULSE_LATCH_RESET                 _LATD0
 #define OLL_RESET_LATCHES                     0
 
-#define PIN_LED_OPERATIONAL_GREEN             _LATA7
-#define PIN_LED_A_RED                         _LATG12
-#define PIN_LED_B_GREEN                       _LATG13  // This is is configured by the CAN module to flash on CAN Bus activity
+//#define PIN_LED_OPERATIONAL_GREEN             _LATA7  // This is is configured by the CAN module
+//#define PIN_LED_A_RED                         _LATG12 // This is is configured by the CAN module
+//#define PIN_LED_B_GREEN                       _LATG13 // This is is configured by the CAN module to flash on CAN Bus activity
 #define OLL_LED_ON                            0
 
 #define PIN_OUT_TP_E                          _LATB8
