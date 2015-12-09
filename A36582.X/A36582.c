@@ -547,7 +547,7 @@ void ResetPulseLatches(void) {
 
 
 //void __attribute__((interrupt, shadow, no_auto_psv)) _INT1Interrupt(void) {
-void __attribute__((interrupt, shadow, no_auto_psv)) _INT1Interrupt(void) {
+void __attribute__((__interrupt__(__preprologue__("BCLR ADCON1, #1")), no_auto_psv)) _INT1Interrupt(void) {
   /*
     A sample trigger has been received
   */ 
@@ -564,7 +564,7 @@ void __attribute__((interrupt, shadow, no_auto_psv)) _INT1Interrupt(void) {
   Nop(); //1000ns
   */
   // Trigger the internal ADC to start conversion
-  _SAMP = 0;  // There Appears to be a delay of ~3 ADC Clocks between this and the sample being held (and the conversion starting)
+  //_SAMP = 0;  // There Appears to be a delay of ~3 ADC Clocks between this and the sample being held (and the conversion starting)
               // I think the ADC clock is running if the ADC is on, therefor we have a sampleing error of up to +/- 1/2 ADC Clock.  Ugh!!!
   //_LATF6 = 1;
   // DPARKER delay until we are in the middle of the current pulse to sample
