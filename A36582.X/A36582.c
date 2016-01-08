@@ -271,7 +271,7 @@ void InitializeA36582(void) {
   
   // Initialize the Can module
   ETMCanSlaveInitialize(CAN_PORT_1, FCY_CLK, ETM_CAN_ADDR_MAGNETRON_CURRENT_BOARD, _PIN_RG13, 4, _PIN_RA7, _PIN_RG12);
-  ETMCanSlaveLoadConfiguration(36582, 0, FIRMWARE_AGILE_REV, FIRMWARE_BRANCH, FIRMWARE_BRANCH_REV);
+  ETMCanSlaveLoadConfiguration(36582, 251, FIRMWARE_AGILE_REV, FIRMWARE_BRANCH, FIRMWARE_BRANCH_REV);
   
   // Initialize the Analog input data structures
   ETMAnalogInitializeInput(&global_data_A36582.imag_internal_adc,
