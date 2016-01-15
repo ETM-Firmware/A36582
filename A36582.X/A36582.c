@@ -1,5 +1,8 @@
 // This is firmware for the Magnetron Current Monitor Board
 
+
+#include "ETM_CRC.h"
+
 #include <libpic30.h>
 #include <adc12.h>
 #include <xc.h>
@@ -26,10 +29,9 @@ void DoStartupLEDs(void);
 void DoPostPulseProcess(void);
 void ResetPulseLatches(void);
 void SavePulseCountersToEEProm(void);
-unsigned int MakeCountCRC(unsigned int* data_ptr);
 
 MagnetronCurrentMonitorGlobalData global_data_A36582;
-
+unsigned int eeprom_read_write_failure_count;
 
 int main(void) {
   global_data_A36582.control_state = STATE_STARTUP;
@@ -224,7 +226,8 @@ void DoStartupLEDs(void) {
 
 
 void InitializeA36582(void) {
-  unsigned int pulse_data[7];
+  unsigned int pulse_data_A[7];
+  unsigned int pulse_data_B[7];
 
   // Initialize the status register and load the inhibit and fault masks
   _CONTROL_REGISTER = 0;
@@ -354,47 +357,34 @@ void InitializeA36582(void) {
 
 
   // Read Data from EEPROM
-  ETMEEPromReadPage(PULSE_COUNT_REGISTER_A, 7, &pulse_data[0]);
+  ETMEEPromReadPage(PULSE_COUNT_REGISTER_A, 7, &pulse_data_A[0]);
+  ETMEEPromReadPage(PULSE_COUNT_REGISTER_B, 7, &pulse_data_B[0]);
   
   // If the data checks out, update with data
-  if (pulse_data[6] == MakeCountCRC(&pulse_data[0])) {
-    global_data_A36582.arc_total = *(unsigned long*)&pulse_data[0];
-    global_data_A36582.pulse_total = *(unsigned long long*)&pulse_data[2];
-    if ((global_data_A36582.arc_total == 0xFFFFFFFF) || global_data_A36582.pulse_total == 0xFFFFFFFFFFFFFFFF) {
-      global_data_A36582.arc_total = 0;
-      global_data_A36582.pulse_total = 0;
-    }
+  if (pulse_data_A[6] == ETMCRC16(pulse_data_A, 12)) {
+    global_data_A36582.arc_total = *(unsigned long*)&pulse_data_A[0];
+    global_data_A36582.pulse_total = *(unsigned long long*)&pulse_data_A[2];
+  } else if (pulse_data_B[6] == ETMCRC16(pulse_data_B, 12)) {
+    global_data_A36582.arc_total = *(unsigned long*)&pulse_data_B[0];
+    global_data_A36582.pulse_total = *(unsigned long long*)&pulse_data_B[2];
+  } else {
+    // Both EEPROM Registers were corrupted
+    global_data_A36582.arc_total = *(unsigned long*)&pulse_data_A[0];
+    global_data_A36582.arc_total |= 0x80000000; // Set the highest bit high to indicate an EEPROM reading error
+    global_data_A36582.pulse_total = *(unsigned long long*)&pulse_data_B[2];
+    global_data_A36582.pulse_total = 0x8000000000000000; // Set the highest bit high to indicate an EEPROM reading error
   }
-  // DPARKER, check the B register
-  
   
   // Run a dummy conversion
   _SAMP = 0;
 
 }
 
-unsigned int MakeCountCRC(unsigned int* data_ptr) {
-  unsigned int crc;
-  crc = *data_ptr;
-  data_ptr++;
-  crc += *data_ptr;
-  data_ptr++;
-  crc += *data_ptr;
-  data_ptr++;
-  crc += *data_ptr;
-  data_ptr++;
-  crc += *data_ptr;
-  data_ptr++;
-  crc += *data_ptr;
-
-  return crc;
-}
-
 void SavePulseCountersToEEProm(void) {
   unsigned int test_data[7];
 
-  global_data_A36582.count_crc = MakeCountCRC((unsigned int*)&global_data_A36582.arc_total);
-  
+  global_data_A36582.count_crc = ETMCRC16(&global_data_A36582.arc_total, 12);
+
   if(global_data_A36582.next_register) {
     // Write to "Page A" 
 
@@ -405,13 +395,14 @@ void SavePulseCountersToEEProm(void) {
     ETMEEPromReadPage(PULSE_COUNT_REGISTER_A, 7, &test_data[0]);
     
     // If the data checks out, update next register
-    if (test_data[6] == MakeCountCRC(&test_data[0])) {
+    if ((test_data[6] == global_data_A36582.count_crc) && (test_data[6] == ETMCRC16(test_data, 12))) {
+      // The data was correctly written to the EEPROM
       global_data_A36582.next_register = 0;
     }
  
   } else  {
     // Write to "Page B"
-
+    
     // Write Data to EEPROM
     ETMEEPromWritePage(PULSE_COUNT_REGISTER_B, 7, (unsigned int*)&global_data_A36582.arc_total);
     
@@ -419,12 +410,12 @@ void SavePulseCountersToEEProm(void) {
     ETMEEPromReadPage(PULSE_COUNT_REGISTER_B, 7, &test_data[0]);
     
     // If the data checks out, update next register
-    if (test_data[6] == MakeCountCRC(&test_data[0])) {
+    if ((test_data[6] == global_data_A36582.count_crc) && (test_data[6] == ETMCRC16(test_data, 12))) {
+      // The data was correctly written to the EEPROM
       global_data_A36582.next_register = 1;
-    }    
-    
+    }
   }
-    
+  
 }
 
 
@@ -635,7 +626,14 @@ void ETMCanSlaveExecuteCMDBoardSpecific(ETMCanMessage* message_ptr) {
       /*
 	Place all board specific commands here
       */
-      
+     
+    case 0x2200:
+      global_data_A36582.arc_total = 0;
+      global_data_A36582.pulse_total = 0;
+      global_data_A36582.pulse_this_hv_on = 0;
+      arc_this_hv_on = 0;
+      break;
+ 
     default:
       //local_can_errors.invalid_index++;
       break;
