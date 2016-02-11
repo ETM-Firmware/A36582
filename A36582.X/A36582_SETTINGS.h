@@ -7,6 +7,7 @@
 #define LED_STARTUP_FLASH_TIME    400                 // 4 Seconds
 
 // The fast arc counter will shutdown with more than 50 arcs in 800 pulses
+// The poor pulse counter will shutdown with more than 10 poor pulses in 800 pulses
 #define ARC_COUNTER_FAST_PERIOD                   800
 #define ARC_COUNTER_FAST_MAX_ARCS                 50
 #define ARC_COUNTER_FAST_DECREMENT_INTERVAL       (ARC_COUNTER_FAST_PERIOD / ARC_COUNTER_FAST_MAX_ARCS)
@@ -17,6 +18,12 @@
 #define ARC_COUNTER_SLOW_MAX_ARCS                 100 
 #define ARC_COUNTER_SLOW_DECREMENT_INTERVAL       (ARC_COUNTER_SLOW_PERIOD / ARC_COUNTER_SLOW_MAX_ARCS)
 
+
+
+// The poor pulse counter will shutdown with more than 10 arcs in 4000 pulses
+#define POOR_PULSE_COUNTER_MAX_DROPPED_PULSES     10
+#define POOR_PULSE_COUNTER_PERIOD                 4000
+#define POOR_PULSE_COUNTER_DECREMENT_INTERVAL     (POOR_PULSE_COUNTER_PERIOD / POOR_PULSE_COUNTER_MAX_DROPPED_PULSES)
 
 
 // The consecutive arc counter will shut down with more than 15 consecutive arcs

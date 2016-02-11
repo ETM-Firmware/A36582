@@ -205,6 +205,7 @@
 #define _FAULT_ARC_FAST                                 _FAULT_2
 #define _FAULT_ARC_CONTINUOUS                           _FAULT_3
 #define _FAULT_FALSE_TRIGGER                            _FAULT_4
+#define _FAULT_POOR_PULSE_PERFORMANCE                   _FAULT_5
 
 typedef struct {
   AnalogInput imag_internal_adc;               // 10mA per LSB
@@ -225,9 +226,11 @@ typedef struct {
   unsigned int fast_arc_counter;
   unsigned int slow_arc_counter;
   unsigned int consecutive_arc_counter;
+  unsigned int poor_pulse_counter;
 
-  unsigned int pulse_counter_fast;  // This counts the number of pulses to decrease the fast arc counter by 1
-  unsigned int pulse_counter_slow;  // this counts the number of pulses to dectease the slow arc counter by 1
+  unsigned int pulse_counter_fast;       // This counts the number of pulses to decrease the fast arc counter by 1
+  unsigned int pulse_counter_slow;       // this counts the number of pulses to decrease the slow arc counter by 1
+  unsigned int pulse_counter_poor_pulse; // this counts the number of pulses to decrease the poor pulse counter by 1
 
   unsigned int sample_index;
   unsigned int sample_energy_mode;
@@ -254,6 +257,7 @@ typedef struct {
 #define filt_ext_adc_low                 slave_board_data.log_data[2]
 #define filt_int_adc_low                 slave_board_data.log_data[3]
 #define arc_this_hv_on                   slave_board_data.log_data[12]
+#define pulse_out_of_range_count         slave_board_data.log_data[13]
 #define over_current_arc_count           slave_board_data.log_data[14]
 #define under_current_arc_count          slave_board_data.log_data[15]
 

@@ -67,6 +67,7 @@ void DoStateMachine(void) {
     
   case STATE_OPERATE:
     global_data_A36582.fast_arc_counter = 0;
+    global_data_A36582.poor_pulse_counter = 0;
     global_data_A36582.slow_arc_counter = 0;
     global_data_A36582.consecutive_arc_counter = 0;
     global_data_A36582.pulse_counter_fast = 0;
@@ -116,7 +117,7 @@ void DoStateMachine(void) {
 void DoA36582(void) {
   ETMCanSlaveDoCan();
 
-  if (ETMCanSlaveGetSyncMsgSystemHVDisable) {
+  if (ETMCanSlaveGetSyncMsgSystemHVDisable()) {
     _INT1IE = 0;
   } else {
     _INT1IE = 1;
@@ -126,6 +127,7 @@ void DoA36582(void) {
   if (ETMCanSlaveGetSyncMsgClearDebug()) {
     arc_this_hv_on = 0;
     global_data_A36582.pulse_this_hv_on = 0;
+    pulse_out_of_range_count = 0;
   }
 
   if (ETMCanSlaveGetComFaultStatus()) {
@@ -151,7 +153,8 @@ void DoA36582(void) {
     ETMCanSlaveSetDebugRegister(0, global_data_A36582.fast_arc_counter);
     ETMCanSlaveSetDebugRegister(1, global_data_A36582.slow_arc_counter);
     ETMCanSlaveSetDebugRegister(2, global_data_A36582.consecutive_arc_counter);
-    //ETMCanSlaveSetDebugRegister(4, global_data_A36582.filt_int_adc_low);
+    ETMCanSlaveSetDebugRegister(3, global_data_A36582.poor_pulse_counter);
+   //ETMCanSlaveSetDebugRegister(4, global_data_A36582.filt_int_adc_low);
     //ETMCanSlaveSetDebugRegister(5, global_data_A36582.filt_ext_adc_low);
     //ETMCanSlaveSetDebugRegister(6, global_data_A36582.filt_int_adc_high);
     //ETMCanSlaveSetDebugRegister(7, global_data_A36582.filt_ext_adc_high);
@@ -160,8 +163,8 @@ void DoA36582(void) {
     ETMCanSlaveSetDebugRegister(10, global_data_A36582.pulse_with_no_trigger_counter);
     ETMCanSlaveSetDebugRegister(11, global_data_A36582.minimum_pulse_period_fault_count);
     ETMCanSlaveSetDebugRegister(12, global_data_A36582.false_trigger_counter);
-    //ETMCanSlaveSetDebugRegister(13, over_current_arc_count);
-    //ETMCanSlaveSetDebugRegister(14, under_current_arc_count);
+    ETMCanSlaveSetDebugRegister(13, over_current_arc_count);
+    ETMCanSlaveSetDebugRegister(14, under_current_arc_count);
 
     *(unsigned long long*)&slave_board_data.log_data[8] = global_data_A36582.pulse_total;
     *(unsigned long*)&slave_board_data.log_data[4] = global_data_A36582.pulse_this_hv_on;
@@ -445,57 +448,53 @@ void DoPostPulseProcess(void) {
   global_data_A36582.arc_this_pulse = 0;
 
   // DPARKER Consider checking the analog current reading to also look for arc
-  if ((PIN_PULSE_OVER_CURRENT_LATCH_1 == ILL_LATCH_SET) || (PIN_PULSE_OVER_CURRENT_LATCH_4 != ILL_LATCH_SET)) {
-    // The current after the trigger was too high or too low
+
+  // Check for an ARC Condition
+  if (PIN_PULSE_OVER_CURRENT_LATCH_1 == ILL_LATCH_SET) {
+    // The current after the trigger was too high
     _NOTICE_ARC_DETECTED = 1;
     global_data_A36582.arc_this_pulse = 1;
-    
-    if (PIN_PULSE_OVER_CURRENT_LATCH_1 == ILL_LATCH_SET) {
-      over_current_arc_count++;
-    }
-    if (PIN_PULSE_OVER_CURRENT_LATCH_4 != ILL_LATCH_SET) {
-      under_current_arc_count++;
-    }
-
     global_data_A36582.arc_total++;
     arc_this_hv_on++;
     global_data_A36582.fast_arc_counter++;
     global_data_A36582.slow_arc_counter++;
     global_data_A36582.consecutive_arc_counter++;
-    
+    over_current_arc_count++;
+    pulse_out_of_range_count++;
+    global_data_A36582.poor_pulse_counter++;
   } else {
     if (global_data_A36582.consecutive_arc_counter) { 
       global_data_A36582.consecutive_arc_counter--;
     }
+  }
+
+  // Check for an undercurrent Condition
+  if (PIN_PULSE_OVER_CURRENT_LATCH_4 != ILL_LATCH_SET) {
+    // The current after the trigger was too low
+    under_current_arc_count++;
+    pulse_out_of_range_count++;
+    global_data_A36582.poor_pulse_counter++;
+  }
+  
     
-    // Filter the ADC current readings
-    _NOT_LOGGED_HIGH_ENERGY = global_data_A36582.sample_energy_mode;
-    if (global_data_A36582.sample_energy_mode) {
-      filt_int_adc_high = RCFilterNTau(filt_int_adc_high,
-				       global_data_A36582.imag_internal_adc.reading_scaled_and_calibrated,
-				       RC_FILTER_64_TAU);
-      
-      filt_ext_adc_high = RCFilterNTau(filt_ext_adc_high,
-				       global_data_A36582.imag_external_adc.reading_scaled_and_calibrated,
-				       RC_FILTER_64_TAU);
-    } else {
-      filt_int_adc_low = RCFilterNTau(filt_int_adc_low,
-				      global_data_A36582.imag_internal_adc.reading_scaled_and_calibrated,
-				      RC_FILTER_64_TAU);
-      
-      filt_ext_adc_low = RCFilterNTau(filt_ext_adc_low,
-				      global_data_A36582.imag_external_adc.reading_scaled_and_calibrated,
-				      RC_FILTER_64_TAU);
-    }
+  // Filter the ADC current readings
+  _NOT_LOGGED_HIGH_ENERGY = global_data_A36582.sample_energy_mode;
+  if (global_data_A36582.sample_energy_mode) {
+    filt_int_adc_high = global_data_A36582.imag_internal_adc.reading_scaled_and_calibrated;
+    filt_ext_adc_high = global_data_A36582.imag_external_adc.reading_scaled_and_calibrated;
+  } else {
+    filt_int_adc_low = global_data_A36582.imag_internal_adc.reading_scaled_and_calibrated;
+    filt_ext_adc_low = global_data_A36582.imag_external_adc.reading_scaled_and_calibrated;
   }
   
   global_data_A36582.pulse_total++;
   global_data_A36582.pulse_this_hv_on++;
 	
-  // Decrement fast_arc_counter if needed
+  // Decrement fast_arc_counter  if needed
   global_data_A36582.pulse_counter_fast++;
   if (global_data_A36582.pulse_counter_fast > ARC_COUNTER_FAST_DECREMENT_INTERVAL) {
     global_data_A36582.pulse_counter_fast = 0;
+    
     if (global_data_A36582.fast_arc_counter) {
       global_data_A36582.fast_arc_counter--;
     }
@@ -510,6 +509,16 @@ void DoPostPulseProcess(void) {
     }
   }
 
+  // Decrement poor_pulse_counter if needed
+  global_data_A36582.pulse_counter_poor_pulse++;
+  if (global_data_A36582.pulse_counter_poor_pulse > POOR_PULSE_COUNTER_DECREMENT_INTERVAL) {
+    global_data_A36582.pulse_counter_poor_pulse = 0;
+    if (global_data_A36582.poor_pulse_counter) {
+      global_data_A36582.poor_pulse_counter--;
+    }
+  }
+
+
   // Look for ARC faults
   if (global_data_A36582.slow_arc_counter >= ARC_COUNTER_SLOW_MAX_ARCS) {
     _FAULT_ARC_SLOW = 1;
@@ -523,6 +532,10 @@ void DoPostPulseProcess(void) {
     _FAULT_ARC_CONTINUOUS = 1;
   }
 	
+  if (global_data_A36582.poor_pulse_counter > POOR_PULSE_COUNTER_MAX_DROPPED_PULSES) {
+    _FAULT_POOR_PULSE_PERFORMANCE = 1;
+  }
+
   // Reset the Latches
   ResetPulseLatches();
   if (ETMCanSlaveGetSyncMsgHighSpeedLogging()) {
@@ -544,28 +557,10 @@ void ResetPulseLatches(void) {
 }
 
 
-//void __attribute__((interrupt, shadow, no_auto_psv)) _INT1Interrupt(void) {
 void __attribute__((__interrupt__(__preprologue__("BCLR ADCON1, #1")), no_auto_psv)) _INT1Interrupt(void) {
   /*
     A sample trigger has been received
   */ 
-  /*
-  Nop(); //100ns
-  Nop(); //200ns
-  Nop(); //300ns
-  Nop(); //400ns
-  Nop(); //500ns
-  Nop(); //600ns
-  Nop(); //700ns
-  Nop(); //800ns
-  Nop(); //900ns
-  Nop(); //1000ns
-  */
-  // Trigger the internal ADC to start conversion
-  //_SAMP = 0;  // There Appears to be a delay of ~3 ADC Clocks between this and the sample being held (and the conversion starting)
-              // I think the ADC clock is running if the ADC is on, therefor we have a sampleing error of up to +/- 1/2 ADC Clock.  Ugh!!!
-  //_LATF6 = 1;
-  // DPARKER delay until we are in the middle of the current pulse to sample
 
   // DPARKER these functions may mess with the timing
   global_data_A36582.sample_energy_mode = ETMCanSlaveGetPulseLevel();
@@ -583,6 +578,13 @@ void __attribute__((__interrupt__(__preprologue__("BCLR ADCON1, #1")), no_auto_p
 
   // Wait for the pulse energy to dissipate
   __delay32(150);
+  
+  // Noise from the PFN will often trigger the pic interrupt input
+  // This checks that the interrupt trigger was a real trigger pulse
+  if (_RA12 == 0) {
+    global_data_A36582.pulse_with_no_trigger_counter++;
+    global_data_A36582.false_trigger_counter++;
+  }
 
   // Read the data from port
   PIN_OUT_TP_F = 1;
