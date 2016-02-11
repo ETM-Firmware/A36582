@@ -116,6 +116,13 @@ void DoStateMachine(void) {
 void DoA36582(void) {
   ETMCanSlaveDoCan();
 
+  if (ETMCanSlaveGetSyncMsgSystemHVDisable) {
+    _INT1IE = 0;
+  } else {
+    _INT1IE = 1;
+  }
+
+
   if (ETMCanSlaveGetSyncMsgClearDebug()) {
     arc_this_hv_on = 0;
     global_data_A36582.pulse_this_hv_on = 0;
