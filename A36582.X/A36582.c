@@ -641,6 +641,7 @@ void ETMCanSlaveExecuteCMDBoardSpecific(ETMCanMessage* message_ptr) {
       global_data_A36582.pulse_total = 0;
       global_data_A36582.pulse_this_hv_on = 0;
       arc_this_hv_on = 0;
+      global_data_A36582.pulse_with_no_trigger_counter = 0;
       break;
  
     default:
