@@ -280,6 +280,7 @@ void InitializeA36582(void) {
 
   
   // Initialize the External EEprom
+  ETMEEPromUseExternal();
   ETMEEPromConfigureExternalDevice(EEPROM_SIZE_8K_BYTES, FCY_CLK, 400000, EEPROM_I2C_ADDRESS_0, 1);
   
   // Initialize the Can module
