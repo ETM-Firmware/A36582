@@ -207,6 +207,8 @@
 #define _FAULT_FALSE_TRIGGER                            _FAULT_4
 #define _FAULT_POOR_PULSE_PERFORMANCE                   _FAULT_5
 
+#define _WARNING_EEPROM_ERROR                           _LOGGED_STATUS_0
+
 typedef struct {
   AnalogInput imag_internal_adc;               // 10mA per LSB
   AnalogInput imag_external_adc;               // 10mA per LSB
@@ -247,6 +249,8 @@ typedef struct {
   unsigned int false_trigger_counter;
 
   unsigned int arc_this_pulse;
+
+  unsigned int external_eeprom_error;
 
 } MagnetronCurrentMonitorGlobalData;
 

@@ -137,6 +137,12 @@ void DoA36582(void) {
   if (_T3IF) {
     _T3IF = 0;
     
+    if (global_data_A36582.external_eeprom_error) {
+      _WARNING_EEPROM_ERROR = 1;
+    } else {
+      _WARNING_EEPROM_ERROR = 0;
+    }
+
     // 10ms has passed
     if (global_data_A36582.control_state == STATE_FLASH_LED) {
       global_data_A36582.led_flash_counter++;
@@ -238,6 +244,8 @@ void DoStartupLEDs(void) {
 void InitializeA36582(void) {
   unsigned int pulse_data_A[7];
   unsigned int pulse_data_B[7];
+  unsigned char analog_port_internal_adc;
+  unsigned char analog_port_external_adc;
 
   // Initialize the status register and load the inhibit and fault masks
   _CONTROL_REGISTER = 0;
@@ -283,6 +291,16 @@ void InitializeA36582(void) {
   ETMEEPromUseExternal();
   ETMEEPromConfigureExternalDevice(EEPROM_SIZE_8K_BYTES, FCY_CLK, 400000, EEPROM_I2C_ADDRESS_0, 1);
   
+  if (ETMEEPromCheckOK() == 0) {
+    global_data_A36582.external_eeprom_error = 1;
+    analog_port_internal_adc = ANALOG_INPUT_NO_CALIBRATION;
+    analog_port_external_adc = ANALOG_INPUT_NO_CALIBRATION;
+  } else {
+    global_data_A36582.external_eeprom_error = 0;
+    analog_port_internal_adc = ANALOG_INPUT_0;
+    analog_port_external_adc = ANALOG_INPUT_1;
+  }
+
   // Initialize the Can module
   ETMCanSlaveInitialize(CAN_PORT_1, FCY_CLK, ETM_CAN_ADDR_MAGNETRON_CURRENT_BOARD, _PIN_RG13, 4, _PIN_RA7, _PIN_RG12);
   ETMCanSlaveLoadConfiguration(36582, 251, FIRMWARE_AGILE_REV, FIRMWARE_BRANCH, FIRMWARE_BRANCH_REV);
@@ -291,7 +309,7 @@ void InitializeA36582(void) {
   ETMAnalogInitializeInput(&global_data_A36582.imag_internal_adc,
 			   MACRO_DEC_TO_SCALE_FACTOR_16(.25075),
 			   OFFSET_ZERO,
-			   ANALOG_INPUT_0,
+			   analog_port_internal_adc,
 			   NO_OVER_TRIP,
 			   NO_UNDER_TRIP,
 			   NO_TRIP_SCALE,
@@ -302,7 +320,7 @@ void InitializeA36582(void) {
   ETMAnalogInitializeInput(&global_data_A36582.imag_external_adc,
 			   MACRO_DEC_TO_SCALE_FACTOR_16(.25075),
 			   OFFSET_ZERO,
-			   ANALOG_INPUT_1, 
+			   analog_port_external_adc, 
 			   NO_OVER_TRIP,
 			   NO_UNDER_TRIP,
 			   NO_TRIP_SCALE,
@@ -368,24 +386,32 @@ void InitializeA36582(void) {
 
 
   // Read Data from EEPROM
-  ETMEEPromReadPage(PULSE_COUNT_REGISTER_A, 7, &pulse_data_A[0]);
-  ETMEEPromReadPage(PULSE_COUNT_REGISTER_B, 7, &pulse_data_B[0]);
-  
-  // If the data checks out, update with data
-  if (pulse_data_A[6] == ETMCRC16(pulse_data_A, 12)) {
-    global_data_A36582.arc_total = *(unsigned long*)&pulse_data_A[0];
-    global_data_A36582.pulse_total = *(unsigned long long*)&pulse_data_A[2];
-  } else if (pulse_data_B[6] == ETMCRC16(pulse_data_B, 12)) {
-    global_data_A36582.arc_total = *(unsigned long*)&pulse_data_B[0];
-    global_data_A36582.pulse_total = *(unsigned long long*)&pulse_data_B[2];
+  if (global_data_A36582.external_eeprom_error == 0) {
+    // Only read from the EEPROM if we can connect to it succesfully
+    ETMEEPromReadPage(PULSE_COUNT_REGISTER_A, 7, &pulse_data_A[0]);
+    ETMEEPromReadPage(PULSE_COUNT_REGISTER_B, 7, &pulse_data_B[0]);
+    
+    // If the data checks out, update with data
+    if (pulse_data_A[6] == ETMCRCModbus(pulse_data_A, 12)) {
+      global_data_A36582.arc_total = *(unsigned long*)&pulse_data_A[0];
+      global_data_A36582.pulse_total = *(unsigned long long*)&pulse_data_A[2];
+    } else if (pulse_data_B[6] == ETMCRCModbus(pulse_data_B, 12)) {
+      global_data_A36582.arc_total = *(unsigned long*)&pulse_data_B[0];
+      global_data_A36582.pulse_total = *(unsigned long long*)&pulse_data_B[2];
+    } else {
+      // Both EEPROM Registers were corrupted
+      global_data_A36582.arc_total = *(unsigned long*)&pulse_data_A[0];
+      global_data_A36582.arc_total |= 0x80000000; // Set the highest bit high to indicate an EEPROM reading error
+      global_data_A36582.pulse_total = *(unsigned long long*)&pulse_data_B[2];
+      global_data_A36582.pulse_total = 0x8000000000000000; // Set the highest bit high to indicate an EEPROM reading error
+    }
   } else {
-    // Both EEPROM Registers were corrupted
-    global_data_A36582.arc_total = *(unsigned long*)&pulse_data_A[0];
+    // There is an EEPROM Error, use values that we can use to interpret
+    global_data_A36582.arc_total = 0;
     global_data_A36582.arc_total |= 0x80000000; // Set the highest bit high to indicate an EEPROM reading error
-    global_data_A36582.pulse_total = *(unsigned long long*)&pulse_data_B[2];
+    global_data_A36582.pulse_total = 0;
     global_data_A36582.pulse_total = 0x8000000000000000; // Set the highest bit high to indicate an EEPROM reading error
   }
-  
   // Run a dummy conversion
   _SAMP = 0;
 
@@ -394,39 +420,42 @@ void InitializeA36582(void) {
 void SavePulseCountersToEEProm(void) {
   unsigned int test_data[7];
 
-  global_data_A36582.count_crc = ETMCRC16(&global_data_A36582.arc_total, 12);
-
-  if(global_data_A36582.next_register) {
-    // Write to "Page A" 
-
-    // Write Data to EEPROM
-    ETMEEPromWritePage(PULSE_COUNT_REGISTER_A, 7, (unsigned int*)&global_data_A36582.arc_total);
-
-    // Read Data from EEPROM
-    ETMEEPromReadPage(PULSE_COUNT_REGISTER_A, 7, &test_data[0]);
+  if (global_data_A36582.external_eeprom_error == 0) {
+    // Only attempt to write data if the eeprom is working
     
-    // If the data checks out, update next register
-    if ((test_data[6] == global_data_A36582.count_crc) && (test_data[6] == ETMCRC16(test_data, 12))) {
-      // The data was correctly written to the EEPROM
-      global_data_A36582.next_register = 0;
-    }
- 
-  } else  {
-    // Write to "Page B"
+    global_data_A36582.count_crc = ETMCRCModbus(&global_data_A36582.arc_total, 12);
     
-    // Write Data to EEPROM
-    ETMEEPromWritePage(PULSE_COUNT_REGISTER_B, 7, (unsigned int*)&global_data_A36582.arc_total);
+    if(global_data_A36582.next_register) {
+      // Write to "Page A" 
+      
+      // Write Data to EEPROM
+      ETMEEPromWritePage(PULSE_COUNT_REGISTER_A, 7, (unsigned int*)&global_data_A36582.arc_total);
+      
+      // Read Data from EEPROM
+      ETMEEPromReadPage(PULSE_COUNT_REGISTER_A, 7, &test_data[0]);
+      
+      // If the data checks out, update next register
+      if ((test_data[6] == global_data_A36582.count_crc) && (test_data[6] == ETMCRCModbus(test_data, 12))) {
+	// The data was correctly written to the EEPROM
+	global_data_A36582.next_register = 0;
+      }
+      
+    } else  {
+      // Write to "Page B"
+      
+      // Write Data to EEPROM
+      ETMEEPromWritePage(PULSE_COUNT_REGISTER_B, 7, (unsigned int*)&global_data_A36582.arc_total);
     
-    // Read Data from EEPROM
-    ETMEEPromReadPage(PULSE_COUNT_REGISTER_B, 7, &test_data[0]);
-    
-    // If the data checks out, update next register
-    if ((test_data[6] == global_data_A36582.count_crc) && (test_data[6] == ETMCRC16(test_data, 12))) {
-      // The data was correctly written to the EEPROM
-      global_data_A36582.next_register = 1;
+      // Read Data from EEPROM
+      ETMEEPromReadPage(PULSE_COUNT_REGISTER_B, 7, &test_data[0]);
+      
+      // If the data checks out, update next register
+      if ((test_data[6] == global_data_A36582.count_crc) && (test_data[6] == ETMCRCModbus(test_data, 12))) {
+	// The data was correctly written to the EEPROM
+	global_data_A36582.next_register = 1;
+      }
     }
   }
-  
 }
 
 
