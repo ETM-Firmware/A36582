@@ -400,17 +400,17 @@ void InitializeA36582(void) {
       global_data_A36582.pulse_total = *(unsigned long long*)&pulse_data_B[2];
     } else {
       // Both EEPROM Registers were corrupted
-      global_data_A36582.arc_total = *(unsigned long*)&pulse_data_A[0];
-      global_data_A36582.arc_total |= 0x80000000; // Set the highest bit high to indicate an EEPROM reading error
-      global_data_A36582.pulse_total = *(unsigned long long*)&pulse_data_B[2];
-      global_data_A36582.pulse_total = 0x8000000000000000; // Set the highest bit high to indicate an EEPROM reading error
+      global_data_A36582.arc_total = 0;
+      //global_data_A36582.arc_total |= 0x00000000; // Set the highest bit high to indicate an EEPROM reading error
+      global_data_A36582.pulse_total = 0;
+      //global_data_A36582.pulse_total |= 0x0000000000000000; // Set the highest bit high to indicate an EEPROM reading error
     }
   } else {
     // There is an EEPROM Error, use values that we can use to interpret
     global_data_A36582.arc_total = 0;
-    global_data_A36582.arc_total |= 0x80000000; // Set the highest bit high to indicate an EEPROM reading error
+    //global_data_A36582.arc_total |= 0x00000000; // Set the highest bit high to indicate an EEPROM reading error
     global_data_A36582.pulse_total = 0;
-    global_data_A36582.pulse_total = 0x8000000000000000; // Set the highest bit high to indicate an EEPROM reading error
+    //global_data_A36582.pulse_total = 0x0000000000000000; // Set the highest bit high to indicate an EEPROM reading error
   }
   // Run a dummy conversion
   _SAMP = 0;
