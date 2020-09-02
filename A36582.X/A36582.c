@@ -67,7 +67,7 @@ void DoStateMachine(void) {
     
   case STATE_OPERATE:
     global_data_A36582.fast_arc_counter = 0;
-    global_data_A36582.poor_pulse_counter = 0;
+    global_data_A36582.undercurrent_counter = 0;
     global_data_A36582.slow_arc_counter = 0;
     global_data_A36582.consecutive_arc_counter = 0;
     global_data_A36582.pulse_counter_fast = 0;
@@ -127,7 +127,7 @@ void DoA36582(void) {
   if (ETMCanSlaveGetSyncMsgClearDebug()) {
     arc_this_hv_on = 0;
     global_data_A36582.pulse_this_hv_on = 0;
-    pulse_out_of_range_count = 0;
+    under_current_count = 0;
   }
 
   if (ETMCanSlaveGetComFaultStatus()) {
@@ -159,7 +159,7 @@ void DoA36582(void) {
     ETMCanSlaveSetDebugRegister(0, global_data_A36582.fast_arc_counter);
     ETMCanSlaveSetDebugRegister(1, global_data_A36582.slow_arc_counter);
     ETMCanSlaveSetDebugRegister(2, global_data_A36582.consecutive_arc_counter);
-    ETMCanSlaveSetDebugRegister(3, global_data_A36582.poor_pulse_counter);
+    ETMCanSlaveSetDebugRegister(3, global_data_A36582.undercurrent_counter);
    //ETMCanSlaveSetDebugRegister(4, global_data_A36582.filt_int_adc_low);
     //ETMCanSlaveSetDebugRegister(5, global_data_A36582.filt_ext_adc_low);
     //ETMCanSlaveSetDebugRegister(6, global_data_A36582.filt_int_adc_high);
@@ -490,8 +490,6 @@ void DoPostPulseProcess(void) {
     global_data_A36582.slow_arc_counter++;
     global_data_A36582.consecutive_arc_counter++;
     over_current_arc_count++;
-    pulse_out_of_range_count++;
-    global_data_A36582.poor_pulse_counter++;
   } else {
     if (global_data_A36582.consecutive_arc_counter) { 
       global_data_A36582.consecutive_arc_counter--;
@@ -502,8 +500,8 @@ void DoPostPulseProcess(void) {
   if (PIN_PULSE_OVER_CURRENT_LATCH_4 != ILL_LATCH_SET) {
     // The current after the trigger was too low
     under_current_arc_count++;
-    pulse_out_of_range_count++;
-    global_data_A36582.poor_pulse_counter++;
+    under_current_count++;
+    global_data_A36582.undercurrent_counter++;
   }
   
     
@@ -539,20 +537,24 @@ void DoPostPulseProcess(void) {
     }
   }
 
-  // Decrement poor_pulse_counter if needed
-  global_data_A36582.pulse_counter_poor_pulse++;
-  if (global_data_A36582.pulse_counter_poor_pulse > POOR_PULSE_COUNTER_DECREMENT_INTERVAL) {
-    global_data_A36582.pulse_counter_poor_pulse = 0;
-    if (global_data_A36582.poor_pulse_counter) {
-      global_data_A36582.poor_pulse_counter--;
+  // Decrement undercurrent_counter if needed
+  global_data_A36582.pulse_counter_under_current++;
+  if (global_data_A36582.pulse_counter_under_current > UNDERCURRENT_COUNTER_DECREMENT_INTERVAL) {
+    global_data_A36582.pulse_counter_under_current = 0;
+    if (global_data_A36582.undercurrent_counter) {
+      global_data_A36582.undercurrent_counter--;
     }
   }
 
 
   // Look for ARC faults
+  /*
+    The slow arc fault has been removed (effectively)
+
   if (global_data_A36582.slow_arc_counter >= ARC_COUNTER_SLOW_MAX_ARCS) {
     _FAULT_ARC_SLOW = 1;
   }
+  */
 
   if (global_data_A36582.fast_arc_counter >= ARC_COUNTER_FAST_MAX_ARCS) {
     _FAULT_ARC_FAST = 1;
@@ -562,7 +564,7 @@ void DoPostPulseProcess(void) {
     _FAULT_ARC_CONTINUOUS = 1;
   }
 	
-  if (global_data_A36582.poor_pulse_counter > POOR_PULSE_COUNTER_MAX_DROPPED_PULSES) {
+  if (global_data_A36582.undercurrent_counter > UNDERCURRENT_COUNTER_MAX_DROPPED_PULSES) {
     _FAULT_POOR_PULSE_PERFORMANCE = 1;
   }
 
